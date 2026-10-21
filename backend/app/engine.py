@@ -8,6 +8,7 @@ import subprocess
 import sys
 import uuid
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -21,10 +22,16 @@ BUGGY_LINE = (
     "    if users[username] == password:\n"
     "        return False  # BUG: valid credentials are rejected\n"
 )
+
 FIXED_LINE = (
     "    if users[username] == password:\n"
     "        return True  # FIX: accept valid credentials\n"
 )
+
+
+def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 timestamp."""
+    return datetime.now(timezone.utc).isoformat()
 
 
 @dataclass
@@ -42,6 +49,7 @@ class Incident:
     approval_status: str = "not_requested"
     verification_status: str = "not_run"
     verification_output: str | None = None
+    created_at: str = ""
 
     def public_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -51,7 +59,7 @@ class Incident:
 
 
 class SentinelForgeEngine:
-    """Controlled demo engine with persistent incident records and workspaces."""
+    """Controlled demo engine with persistent incident records."""
 
     def __init__(self) -> None:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -96,20 +104,23 @@ class SentinelForgeEngine:
                 "SELECT payload FROM incidents"
             ).fetchall()
 
+        allowed_parent = WORKSPACES_DIR.resolve()
+
         for row in rows:
             try:
                 data = json.loads(row["payload"])
                 incident = Incident(**data)
+
                 workspace = Path(incident.workspace).resolve()
 
-                # Restore only workspaces inside this application's workspace directory.
-                if workspace.parent != WORKSPACES_DIR.resolve():
+                # Restore only direct child workspaces belonging to this app.
+                if workspace.parent != allowed_parent:
                     continue
 
                 if workspace.is_dir():
                     self.incidents[incident.id] = incident
 
-            except (ValueError, TypeError, KeyError):
+            except (ValueError, TypeError, KeyError, OSError):
                 # Skip damaged records rather than preventing startup.
                 continue
 
@@ -133,13 +144,17 @@ class SentinelForgeEngine:
             raise ValueError(f"Unknown scenario: {scenario_id}")
 
         if not FIXTURE.is_dir():
-            raise ValueError(f"Demo fixture directory not found: {FIXTURE}")
+            raise ValueError(
+                f"Demo fixture directory not found: {FIXTURE}"
+            )
 
         incident_id = str(uuid.uuid4())[:8]
         workspace = WORKSPACES_DIR / incident_id
 
         if workspace.exists():
-            raise ValueError("Incident workspace already exists; try again")
+            raise ValueError(
+                "Incident workspace already exists; try again"
+            )
 
         shutil.copytree(FIXTURE, workspace)
 
@@ -148,17 +163,22 @@ class SentinelForgeEngine:
             scenario_id=scenario_id,
             title="Login regression: valid users are rejected",
             workspace=str(workspace.resolve()),
+            created_at=utc_now(),
         )
 
         result = self._run_tests(workspace)
+
         incident.baseline_output = result["output"]
         incident.baseline_passed = result["passed"]
         incident.status = (
-            "baseline_failed" if not result["passed"] else "baseline_passed"
+            "baseline_failed"
+            if not result["passed"]
+            else "baseline_passed"
         )
 
         self.incidents[incident.id] = incident
         self._save_incident(incident)
+
         return incident
 
     def get_incident(self, incident_id: str) -> Incident:
@@ -167,36 +187,57 @@ class SentinelForgeEngine:
         except KeyError as exc:
             raise ValueError("Incident not found") from exc
 
+    def list_incidents(self) -> list[Incident]:
+        """Return incidents newest first, using creation timestamps."""
+        return sorted(
+            self.incidents.values(),
+            key=lambda incident: (
+                bool(incident.created_at),
+                incident.created_at,
+                incident.id,
+            ),
+            reverse=True,
+        )
+
     def investigate(self, incident_id: str) -> Incident:
         incident = self.get_incident(incident_id)
         source_path = Path(incident.workspace) / "auth_logic.py"
         source = source_path.read_text(encoding="utf-8")
 
-        if "return False  # BUG: valid credentials are rejected" not in source:
+        if (
+            "return False  # BUG: valid credentials are rejected"
+            not in source
+        ):
             incident.diagnosis = (
-                "The known faulty line was not found; no diagnosis was asserted."
+                "The known faulty line was not found; "
+                "no diagnosis was asserted."
             )
             incident.evidence = [
-                "Expected faulty code pattern was not present in the workspace."
+                "Expected faulty code pattern was not present "
+                "in the workspace."
             ]
             incident.status = "investigation_inconclusive"
             self._save_incident(incident)
             return incident
 
         incident.diagnosis = (
-            "The credential comparison is correct, but the success branch "
-            "returns False. This reverses the expected result for valid credentials."
+            "The credential comparison is correct, but the success "
+            "branch returns False. This reverses the expected result "
+            "for valid credentials."
         )
+
         incident.evidence = [
-            "auth_logic.py: the branch checks whether the stored password "
-            "equals the supplied password.",
+            "auth_logic.py: the branch checks whether the stored "
+            "password equals the supplied password.",
             "auth_logic.py: the matching-password branch returns False "
             "(the suspected defect).",
             "Baseline test output: test_valid_credentials fails while "
             "invalid-credential checks are evaluated.",
         ]
+
         incident.status = "investigated"
         self._save_incident(incident)
+
         return incident
 
     def propose_patch(self, incident_id: str) -> Incident:
@@ -207,7 +248,8 @@ class SentinelForgeEngine:
             or incident.status == "investigation_inconclusive"
         ):
             raise ValueError(
-                "Investigate the incident successfully before proposing a patch"
+                "Investigate the incident successfully "
+                "before proposing a patch"
             )
 
         incident.proposed_patch = """--- a/auth_logic.py
@@ -216,8 +258,10 @@ class SentinelForgeEngine:
 -        return False  # BUG: valid credentials are rejected
 +        return True  # FIX: accept valid credentials
 """
+
         incident.approval_status = "pending"
         incident.status = "patch_pending_approval"
+
         self._save_incident(incident)
         return incident
 
@@ -235,17 +279,18 @@ class SentinelForgeEngine:
 
         if BUGGY_LINE not in source:
             raise ValueError(
-                "Patch precondition failed: expected source line was not found"
+                "Patch precondition failed: expected source line "
+                "was not found"
             )
 
         # Apply only the exact allow-listed patch after explicit approval.
-        source_path.write_text(
-            source.replace(BUGGY_LINE, FIXED_LINE, 1),
-            encoding="utf-8",
-        )
+        updated_source = source.replace(BUGGY_LINE, FIXED_LINE, 1)
+
+        source_path.write_text(updated_source, encoding="utf-8")
 
         incident.approval_status = "approved"
         incident.status = "patch_approved"
+
         self._save_incident(incident)
         return incident
 
@@ -253,9 +298,12 @@ class SentinelForgeEngine:
         incident = self.get_incident(incident_id)
 
         if incident.approval_status != "approved":
-            raise ValueError("Approve the proposed patch before verification")
+            raise ValueError(
+                "Approve the proposed patch before verification"
+            )
 
         result = self._run_tests(Path(incident.workspace))
+
         incident.verification_output = result["output"]
         incident.verification_status = (
             "passed" if result["passed"] else "failed"
@@ -302,24 +350,34 @@ class SentinelForgeEngine:
 
             return {
                 "passed": False,
-                "output": output[-12000:]
-                or f"Tests failed with exit code {completed.returncode}.",
+                "output": (
+                    output[-12000:]
+                    or (
+                        "Tests failed with exit code "
+                        f"{completed.returncode}."
+                    )
+                ),
             }
 
         except subprocess.TimeoutExpired as exc:
             partial_output = ""
 
             if isinstance(exc.stdout, bytes):
-                partial_output += exc.stdout.decode("utf-8", errors="replace")
+                partial_output += exc.stdout.decode(
+                    "utf-8", errors="replace"
+                )
             elif exc.stdout:
                 partial_output += exc.stdout
 
             if isinstance(exc.stderr, bytes):
-                partial_output += exc.stderr.decode("utf-8", errors="replace")
+                partial_output += exc.stderr.decode(
+                    "utf-8", errors="replace"
+                )
             elif exc.stderr:
                 partial_output += exc.stderr
 
             message = "ERROR: test execution timed out after 30 seconds."
+
             if partial_output.strip():
                 message += "\n" + partial_output.strip()
 

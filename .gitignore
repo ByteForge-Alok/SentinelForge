@@ -1,6 +1,34 @@
+# Python virtual environments
 **/.venv/
+**/venv/
+
+# Python caches
 **/__pycache__/
 **/.pytest_cache/
-**/.env
 *.py[cod]
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+
+# Local incident data and workspaces
 backend/data/
+
+# Node dependencies
+**/node_modules/
+
+# Frontend build output
+frontend/dist/
+
+# Test and coverage output
+.coverage
+coverage.xml
+htmlcov/
+
+# Editor and operating-system files
+.vscode/
+.DS_Store
+Thumbs.db
