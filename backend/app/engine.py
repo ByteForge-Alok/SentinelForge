@@ -265,7 +265,7 @@ class SentinelForgeEngine:
 
         return relevant, other
 
-    def investigate(self, incident_id: str) -> Incident:
+    async def investigate(self, incident_id: str) -> Incident:
         incident = self.get_incident(incident_id)
         source_path = Path(incident.workspace) / "auth_logic.py"
         source = source_path.read_text(encoding="utf-8")
@@ -291,7 +291,7 @@ class SentinelForgeEngine:
             "repair patterns, failed approaches, and regression test outcomes."
         )
 
-        recalled = memory.recall(incident.memory_query)
+        recalled = await memory.recall(incident.memory_query)
         incident.memory_status = recalled["status"]
         incident.recalled_memories = recalled.get("results", [])
         incident.memory_message = recalled.get("message", "")
@@ -401,7 +401,7 @@ class SentinelForgeEngine:
         self._save_incident(incident)
         return incident
 
-    def verify(self, incident_id: str) -> Incident:
+    async def verify(self, incident_id: str) -> Incident:
         incident = self.get_incident(incident_id)
 
         if incident.approval_status != "approved":
@@ -421,7 +421,7 @@ class SentinelForgeEngine:
 
         # Retain only after tests pass.
         if incident.verification_status == "passed":
-            retained = memory.retain(
+            retained = await memory.retain(
                 content=(
                     f"Verified software incident: {incident.title}. "
                     f"Scenario: {incident.scenario_id}. "
@@ -533,3 +533,6 @@ class SentinelForgeEngine:
                     f"ERROR running tests: {type(exc).__name__}: {exc}"
                 ),
             }
+
+
+engine = SentinelForgeEngine()

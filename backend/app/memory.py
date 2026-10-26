@@ -1,4 +1,3 @@
-
 """Hindsight-backed incident memory for SentinelForge."""
 
 from __future__ import annotations
@@ -10,7 +9,6 @@ from dotenv import load_dotenv
 
 # Load backend/.env when the application starts from the backend directory.
 load_dotenv()
-
 
 BANK_ID = os.getenv(
     "HINDSIGHT_BANK_ID",
@@ -81,8 +79,8 @@ class IncidentMemory:
             ),
         }
 
-    def recall(self, query: str) -> dict[str, Any]:
-        """Retrieve relevant memories for an incident investigation."""
+    async def recall(self, query: str) -> dict[str, Any]:
+        """Asynchronously retrieve relevant memories."""
         if not self._client:
             return {
                 "status": "not_configured",
@@ -92,7 +90,7 @@ class IncidentMemory:
             }
 
         try:
-            result = self._client.recall(
+            result = await self._client.arecall(
                 bank_id=BANK_ID,
                 query=query,
                 budget="low",
@@ -128,13 +126,13 @@ class IncidentMemory:
                 ),
             }
 
-    def retain(
+    async def retain(
         self,
         content: str,
         context: str,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Store an incident outcome for future investigations."""
+        """Asynchronously store an incident outcome."""
         if not self._client:
             return {
                 "status": "not_configured",
@@ -142,11 +140,14 @@ class IncidentMemory:
             }
 
         try:
-            self._client.retain(
+            await self._client.aretain(
                 bank_id=BANK_ID,
                 content=content,
                 context=context,
-                metadata=metadata or {},
+                metadata={
+                    str(key): str(value)
+                    for key, value in (metadata or {}).items()
+                },
             )
 
             return {
@@ -163,10 +164,10 @@ class IncidentMemory:
                 ),
             }
 
-
     async def aclose(self) -> None:
         """Close the Hindsight client during application shutdown."""
         if self._client is not None:
             await self._client.aclose()
+
 
 memory = IncidentMemory()
