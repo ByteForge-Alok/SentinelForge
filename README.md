@@ -1,40 +1,157 @@
 # SentinelForge
 
-**An AI-assisted software repair and verification platform prototype.**
+**An evidence-driven software repair and verification platform prototype.**
 
-SentinelForge demonstrates an evidence-driven workflow for investigating software failures, proposing a repair, requiring human approval, applying the approved repair in an isolated working copy, and verifying the outcome with automated tests.
+SentinelForge demonstrates a controlled workflow for investigating software failures, proposing repairs, requiring explicit human approval, applying approved changes in an incident working copy, and verifying the outcome with automated tests.
 
-The goal is simple: **don't just propose a fix — collect evidence and verify that it works.**
+> **Don't just propose a fix — collect evidence and verify that it works.**
 
-> **Project status:** Working prototype. The current implementation uses deterministic investigation and an allow-listed repair for a known Python bug scenario. It is not yet powered by an integrated AI model, and its workspace isolation is not a production-grade security boundary.
+SentinelForge integrates **Hindsight Cloud** for persistent engineering incident memory. It can retrieve relevant historical context during an investigation and attempt to retain verified incident outcomes after successful post-repair testing.
+
+> **Project status:** Working prototype. The current repair workflow uses deterministic investigation and an allow-listed patch for a supported Python authentication regression. Hindsight adds persistent historical context; it does not make the repair engine a general-purpose AI system. Working-copy isolation is not a production-grade security boundary.
+
+---
+
+## Table of Contents
+
+- [Problem Statement](#problem-statement)
+- [Proposed Solution](#proposed-solution)
+- [Key Features](#key-features)
+- [How It Works](#how-it-works)
+- [Hindsight Cloud Integration](#hindsight-cloud-integration)
+- [Technology Stack](#technology-stack)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Requirements](#requirements)
+- [Installation and Setup](#installation-and-setup)
+- [Running Tests](#running-tests)
+- [API Reference](#api-reference)
+- [Example API Workflow](#example-api-workflow)
+- [Demonstration Results](#demonstration-results)
+- [Dashboard Sections](#dashboard-sections)
+- [Current Limitations](#current-limitations)
+- [Future Development](#future-development)
+- [Documentation](#documentation)
+
+---
+
+## Problem Statement
+
+Software failures are often investigated using fragmented logs, repeated debugging sessions, and fixes whose effectiveness is not adequately verified. Engineering teams may also lose useful knowledge from previous incidents, forcing them to rediscover solutions to recurring problems.
+
+A proposed patch alone does not establish that a defect has been resolved. A reliable repair workflow should preserve diagnostic evidence, require appropriate human oversight, and verify the resulting behavior.
+
+## Proposed Solution
+
+SentinelForge provides a controlled, evidence-driven workflow that connects incident investigation, repair approval, automated verification, and historical engineering memory.
+
+The prototype demonstrates how these stages can work together:
+
+- Reproduce a known failure before making changes.
+- Record evidence and produce a deterministic diagnosis.
+- Retrieve relevant historical incident memories when Hindsight is configured.
+- Propose an explicitly allow-listed repair.
+- Require human approval before applying the change.
+- Run automated tests to verify the repaired behavior.
+- Attempt to retain the verified outcome in Hindsight.
+- Preserve incident history for review and reporting.
+
+The goal is to make software repair more traceable, reviewable, and verifiable.
 
 ## Key Features
 
-- **Incident Creation:** Create incidents from supported software failure scenarios.
-- **Baseline Testing:** Run automated tests to establish the initial failure.
-- **Evidence-Driven Investigation:** Collect failure evidence and produce a deterministic diagnosis.
-- **Patch Proposal:** Generate a proposed repair for the supported scenario.
-- **Human Approval Gate:** Require explicit approval before applying the repair.
-- **Post-Repair Verification:** Run automated tests after the approved patch is applied.
-- **Persistent Incident History:** Store incident records in SQLite and retain local incident workspaces.
-- **Interactive Dashboard:** Monitor incident status and progress through the repair workflow.
-- **Incident Reports:** Export incident information as text reports.
-- **REST API:** Expose the repair workflow through a FastAPI backend.
+- **Incident Management:** Create and track incidents from supported failure scenarios.
+- **Baseline Testing:** Reproduce the original failure before applying a repair.
+- **Evidence-Driven Investigation:** Record failure evidence and produce a deterministic diagnosis.
+- **Hindsight Incident Memory:** Recall relevant historical engineering context and attempt to retain verified outcomes through Hindsight Cloud.
+- **Controlled Patch Proposal:** Propose an allow-listed repair for the supported scenario.
+- **Human Approval Gate:** Require explicit approval before applying a proposed change.
+- **Post-Repair Verification:** Execute automated tests after the approved patch is applied.
+- **Persistent Incident History:** Store incident records in SQLite and maintain local incident workspaces.
+- **Interactive Dashboard:** Inspect incident status, diagnostic evidence, memory activity, and repair progress.
+- **Incident Reports:** Review incident details and export text reports.
+- **REST API:** Access supported workflow operations through a FastAPI backend.
 
 ## How It Works
 
 SentinelForge follows a controlled repair lifecycle:
 
-1. **Create an incident** from a supported failure scenario.
-2. **Run baseline tests** to reproduce and document the failure.
-3. **Investigate the failure** and record diagnostic evidence.
-4. **Propose a patch** for the identified issue.
-5. **Request human approval** before applying the proposed change.
-6. **Apply the approved patch** in the incident's working copy.
-7. **Run verification tests** to determine whether the repair succeeds.
-8. **Review the results** through the dashboard or incident report.
+1. Create an incident from a supported failure scenario.
+2. Run baseline tests to reproduce the defect.
+3. Investigate the failure and collect diagnostic evidence.
+4. Recall relevant historical memories from Hindsight, when configured.
+5. Generate a repair proposal for the supported issue.
+6. Require explicit human approval.
+7. Apply the approved patch in the incident's working copy.
+8. Run post-repair verification tests.
+9. Attempt to retain the verified outcome in Hindsight when verification passes.
+10. Review the incident, evidence, and results in the dashboard or report.
 
-The prototype demonstrates this workflow using a known Python authentication bug. The baseline test suite fails, the supported repair is proposed and approved, and the subsequent verification tests pass.
+The current demonstration uses a Python authentication regression in which valid credentials are incorrectly rejected. The baseline tests reproduce the defect, the system proposes an allow-listed repair, a human approves the change, and post-repair tests check the repaired behavior.
+
+**Important:** Hindsight memory provides supplementary context. Historical memories do not replace current source evidence or automated test results, and a successful local test run does not by itself prove that a remote memory operation succeeded.
+
+## Hindsight Cloud Integration
+
+SentinelForge integrates Hindsight Cloud to provide persistent historical context across engineering incidents.
+
+### Integration capabilities
+
+| Capability | Description |
+|---|---|
+| Memory recall | Retrieves historical memories relevant to an investigation. |
+| Relevance filtering | Uses deterministic keyword criteria to classify recalled text; this is not an AI judgment. |
+| Verified-outcome retention | Attempts to retain incident outcome information after post-patch verification passes. |
+| Status reporting | Exposes client configuration status through `GET /api/memory/status`. |
+| Failure reporting | Reports missing configuration and remote-operation failures rather than treating them as successful operations. |
+
+A configured client does not guarantee that remote recall or retention will succeed. Inspect the status and returned results reported by the application.
+
+### Configure Hindsight Cloud
+
+1. Set up Hindsight Cloud using its official documentation.
+2. Ensure the required memory bank already exists in your account. SentinelForge does not automatically create the bank during application startup.
+3. Copy the backend environment example file.
+4. Set your own API key and confirm the bank ID matches your Hindsight Cloud configuration.
+
+From the repository root, run:
+
+```powershell
+Copy-Item .\backend\.env.example .\backend\.env
+```
+
+Edit `backend/.env` with your configuration:
+
+```dotenv
+HINDSIGHT_API_KEY=your_api_key_here
+HINDSIGHT_BASE_URL=https://api.hindsight.vectorize.io
+HINDSIGHT_BANK_ID=sentinelforge-incidents
+```
+
+| Environment variable | Purpose |
+|---|---|
+| `HINDSIGHT_API_KEY` | API key used to initialize the Hindsight client. |
+| `HINDSIGHT_BASE_URL` | Hindsight Cloud API base URL. |
+| `HINDSIGHT_BANK_ID` | Existing memory bank used for recall and retention. |
+
+The default bank ID is `sentinelforge-incidents`. Use the bank ID configured in your own Hindsight Cloud account.
+
+**Security:** Never commit `backend/.env`, expose your API key, or include credentials in screenshots, demonstration videos, or reports.
+
+### Verify the integration
+
+After configuring the environment and starting the backend:
+
+1. Open `http://127.0.0.1:8000/api/memory/status`.
+2. Check whether the Hindsight client is configured.
+3. Open the SentinelForge dashboard and create an incident.
+4. Run the investigation and inspect the recall status and returned memories.
+5. Approve the proposed repair and run post-repair verification.
+6. Inspect the reported retention status.
+
+A passing test suite does not prove that a remote Hindsight operation succeeded. Confirm the operation's actual status in the application.
+
+The integration uses the Hindsight Python client's asynchronous recall and retention operations. Refer to the official Hindsight Python SDK documentation for provider-specific setup and API details.
 
 ## Technology Stack
 
@@ -42,10 +159,12 @@ The prototype demonstrates this workflow using a known Python authentication bug
 |---|---|
 | Frontend | React, Vite, JavaScript, CSS |
 | Backend | Python, FastAPI |
-| Testing | pytest |
+| Automated testing | pytest |
 | Persistence | SQLite |
-| API Documentation | OpenAPI / Swagger UI |
-| Version Control | Git and GitHub |
+| Incident memory | Hindsight Cloud, `hindsight-client` |
+| Configuration | Environment variables, `python-dotenv` |
+| API documentation | OpenAPI, Swagger UI |
+| Version control | Git, GitHub |
 
 ## Architecture
 
@@ -56,32 +175,27 @@ User
 React Dashboard
  |
  v
-FastAPI Backend
+FastAPI REST API
  |
  v
 SentinelForge Engine
  |
  +--> Incident Management
- |
  +--> Baseline Test Execution
- |
- +--> Failure Investigation
- |
+ +--> Evidence-Based Investigation
+ +--> Hindsight Memory Recall
  +--> Patch Proposal
- |
  +--> Human Approval
- |
- +--> Patch Application
- |
+ +--> Approved Patch Application
  +--> Post-Repair Verification
- |
+ +--> Hindsight Outcome Retention
  +--> SQLite Incident Persistence
  |
  v
 Incident Results and Reports
 ```
 
-The frontend communicates with the backend through REST API endpoints. The backend engine manages incidents, executes tests, records workflow state, and retains incident data locally.
+The frontend communicates with the backend through REST API endpoints. The backend manages incident state, executes the supported repair workflow, records evidence, persists incident information, and coordinates optional Hindsight memory operations.
 
 ## Project Structure
 
@@ -90,12 +204,14 @@ SentinelForge/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py
-│   │   └── engine.py
+│   │   ├── engine.py
+│   │   └── memory.py
 │   ├── fixtures/
 │   │   └── buggy_app/
 │   ├── tests/
 │   ├── pytest.ini
-│   └── requirements.txt
+│   ├── requirements.txt
+│   └── .env.example
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── ACCEPTANCE_TESTS.md
@@ -110,63 +226,35 @@ SentinelForge/
 └── README.md
 ```
 
-Runtime incident databases and working copies are generated locally under `backend/data/` and are excluded from version control.
+Runtime databases and incident working copies are generated locally under `backend/data/` and are excluded from version control.
+
+*The tree highlights the principal project files; additional files may exist in the repository.*
 
 ## Requirements
 
-Before running SentinelForge, install:
+Install the following before running the project:
 
-- Python 3.11 or newer recommended.
+- Python 3.11 or newer.
 - Node.js and npm.
 - Git.
-- Internet access for the initial dependency installation.
+- Internet access for dependency installation and optional Hindsight Cloud requests.
 
-The commands below use Windows PowerShell.
-
-
-## Hindsight incident memory
-
-SentinelForge now has an optional **real Hindsight integration** for recalling prior engineering incidents during investigation and retaining an outcome only after the post-patch tests pass. The dashboard displays the recall result and retention status; it does not fabricate sample memories.
-
-### Configure Hindsight Cloud
-
-1. Create/configure a Hindsight Cloud API key using the official [Hindsight docs](https://hindsight.vectorize.io/).
-2. In `backend`, copy `.env.example` to `.env` and set `HINDSIGHT_API_KEY` to your own key. Do not commit `.env` or share the key in screenshots.
-3. Install backend dependencies and restart the API so it reads the environment:
-
-   ```powershell
-   cd backend
-   Copy-Item .env.example .env
-   # Edit .env and set HINDSIGHT_API_KEY before continuing.
-   .\.venv\Scripts\Activate.ps1
-   pip install -r requirements.txt
-   uvicorn app.main:app --reload
-   ```
-
-   If your virtual environment is not already created, create it with `python -m venv .venv` first.
-4. Open the dashboard, create an incident, and run **Investigate evidence**. The Hindsight panel shows actual recall status and any returned memories.
-5. Approve the proposed patch and run verification. Only a passing verification result is sent to Hindsight as a verified-outcome memory.
-
-Configuration uses `HINDSIGHT_BASE_URL` (default `https://api.hindsight.vectorize.io`) and `HINDSIGHT_BANK_ID` (default `sentinelforge-engineering`). The API endpoint `/api/memory/status` reports whether the client is configured. Without a key, the repair workflow still runs, but Hindsight memory calls are explicitly marked as not configured. A configured client alone does not prove a successful remote call; check the incident's displayed recall/retention status.
-
-The implementation follows Hindsight's documented Python client operations (`create_bank`, `recall`, and `retain`): [Python SDK guide](https://docs.hindsight.vectorize.io/cloud/python-sdk/).
+The following instructions use Windows PowerShell.
 
 ## Installation and Setup
 
-### 1. Clone the Repository
-
-Clone the public repository:
+### 1. Clone the repository
 
 ```powershell
 git clone https://github.com/ByteForge-Alok/SentinelForge.git
 cd SentinelForge
 ```
 
-If you already have the project, open your existing `D:\sentinelforge` folder in VS Code instead.
+If the repository is already cloned, open your existing project directory instead.
 
-### 2. Set Up the Backend
+### 2. Set up the backend
 
-From the project root, run:
+From the repository root:
 
 ```powershell
 cd backend
@@ -176,7 +264,7 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-If PowerShell blocks virtual environment activation, run:
+If PowerShell blocks virtual environment activation, run this in the same PowerShell process:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
@@ -185,71 +273,93 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 This changes the execution policy only for the current PowerShell process.
 
-### 3. Start the Backend
+### 3. Configure optional Hindsight memory
 
-From the `backend` directory, with the virtual environment activated, run:
+From the repository root, copy the example environment file:
 
 ```powershell
-uvicorn app.main:app --reload --reload-dir app
+Copy-Item .\backend\.env.example .\backend\.env
+```
+
+Edit `backend/.env` and set your own API key. Confirm that the configured memory bank exists and that `HINDSIGHT_BANK_ID` is correct.
+
+Do not commit the `.env` file.
+
+If Hindsight is not configured, the core repair workflow may still run, while memory operations are reported as not configured.
+
+### 4. Start the backend
+
+From the `backend` directory, with its virtual environment activated:
+
+```powershell
+uvicorn app.main:app --reload
 ```
 
 The backend should be available at:
 
-- **API base URL:** http://127.0.0.1:8000
-- **Interactive API documentation:** http://127.0.0.1:8000/docs
-- **Health endpoint:** http://127.0.0.1:8000/api/health
+- **API base URL:** `http://127.0.0.1:8000`
+- **Interactive API documentation:** `http://127.0.0.1:8000/docs`
+- **Health endpoint:** `http://127.0.0.1:8000/api/health`
+- **Hindsight status:** `http://127.0.0.1:8000/api/memory/status`
 
-Keep this terminal running.
+Keep the backend terminal running.
 
-### 4. Set Up the Frontend
+### 5. Start the frontend
 
-Open a second terminal in VS Code and run:
+Open a second terminal in the repository root:
 
 ```powershell
-cd D:\sentinelforge\frontend
+cd frontend
 npm install
 npm run dev
 ```
 
-Vite will display the local development URL. With the default configuration, open:
+Open the local URL printed by Vite. With the default configuration, this is:
 
-http://localhost:5173/
+`http://localhost:5173/`
 
-Keep the frontend terminal running as well.
+Keep the frontend terminal running.
 
-### 5. Run the Backend Tests
+## Running Tests
 
-Open another terminal and run:
+From the repository root, activate the backend virtual environment and run:
 
 ```powershell
-cd D:\sentinelforge\backend
+cd backend
 .\.venv\Scripts\Activate.ps1
 python -m pytest -q
 ```
 
-The current backend test suite has passed with **2 tests passing**. A Starlette deprecation warning may appear; it is a warning, not a test failure.
+**Latest reported development result:** 6 tests passed in 4.58 seconds, with one Starlette/httpx deprecation warning.
 
-The supported fixture's baseline tests intentionally demonstrate the authentication bug before the repair is applied.
+This result reflects a recorded development run, not a guarantee for every clean installation. After installing dependencies in a fresh environment, run the tests again and report the actual result.
 
-## API Endpoints
+The supported fixture's baseline tests intentionally reproduce the authentication defect before repair. Post-repair verification tests check the repaired behavior.
+
+## API Reference
 
 The backend exposes the following endpoints:
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| GET | `/api/health` | Check backend health |
-| GET | `/api/scenarios` | List supported failure scenarios |
-| POST | `/api/incidents` | Create an incident |
-| GET | `/api/incidents` | List incidents |
-| GET | `/api/incidents/{id}` | Retrieve an incident |
-| POST | `/api/incidents/{id}/investigate` | Investigate the failure |
-| POST | `/api/incidents/{id}/propose-patch` | Propose a repair |
-| POST | `/api/incidents/{id}/approve-patch` | Approve the proposed repair |
-| POST | `/api/incidents/{id}/verify` | Verify the repair with tests |
+| `GET` | `/api/health` | Check backend health. |
+| `GET` | `/api/scenarios` | List supported failure scenarios. |
+| `GET` | `/api/memory/status` | Check Hindsight client configuration. |
+| `POST` | `/api/incidents` | Create an incident. |
+| `GET` | `/api/incidents` | List incidents. |
+| `GET` | `/api/incidents/{id}` | Retrieve an incident. |
+| `POST` | `/api/incidents/{id}/investigate` | Investigate the failure. |
+| `POST` | `/api/incidents/{id}/propose-patch` | Propose a repair. |
+| `POST` | `/api/incidents/{id}/approve-patch` | Approve the proposed repair. |
+| `POST` | `/api/incidents/{id}/verify` | Verify the repair and, when eligible, attempt outcome retention. |
 
-### Example API Workflow
+Explore the available operations and request schemas through Swagger UI:
 
-Create an incident using the supported scenario:
+`http://127.0.0.1:8000/docs`
+
+## Example API Workflow
+
+Create an incident using the supported scenario by sending this JSON body to `POST /api/incidents`:
 
 ```json
 {
@@ -257,13 +367,7 @@ Create an incident using the supported scenario:
 }
 ```
 
-Send this JSON body to:
-
-```text
-POST /api/incidents
-```
-
-Use the incident ID returned by the API to progress through the workflow:
+Use the returned incident ID for the subsequent operations:
 
 ```text
 POST /api/incidents/{id}/investigate
@@ -272,15 +376,13 @@ POST /api/incidents/{id}/approve-patch
 POST /api/incidents/{id}/verify
 ```
 
-Replace `{id}` with the actual incident ID. Each stage depends on the incident's current state and the preceding workflow steps.
+Replace `{id}` with the actual incident ID. Each operation depends on the incident's current state and the preceding workflow steps.
 
-You can explore and execute these requests interactively through the Swagger UI at http://127.0.0.1:8000/docs.
+## Demonstration Results
 
-## Verification Results
+The supported authentication-regression demonstration follows this sequence:
 
-The current supported demonstration follows this sequence:
-
-| Stage | Expected result |
+| Stage | Demonstrated result |
 |---|---|
 | Baseline tests | 1 failed, 2 passed |
 | Investigation | Failure evidence and diagnosis recorded |
@@ -288,58 +390,59 @@ The current supported demonstration follows this sequence:
 | Human approval | Repair explicitly approved |
 | Post-repair verification | 3 passed |
 
-These results describe the current supported scenario and test fixture, not a guarantee that arbitrary software defects can be repaired automatically.
+These results apply to the supported demonstration scenario. They do not establish that arbitrary software defects can be repaired automatically.
 
-## Frontend Pages
-
-The dashboard includes:
+## Dashboard Sections
 
 - **Dashboard:** View incident status and repair progress.
 - **Incidents:** Browse and inspect incident history.
-- **Scan:** Start an incident from a supported scenario.
+- **Scan:** Start the supported incident workflow.
 - **Reports:** Review incident information and export text reports.
 - **Settings:** Check backend connectivity and view prototype configuration information.
 
+The incident evidence workflow also presents Hindsight recall status and returned memories when available, along with the reported status of verified-outcome retention.
+
 ## Current Limitations
 
-SentinelForge is a working prototype, not a production-ready autonomous repair system.
+SentinelForge is a working prototype, not a production-ready autonomous repair platform.
 
-- **No integrated AI model:** Investigation and repair selection are deterministic.
+- **No integrated AI repair model:** Investigation and repair selection are deterministic.
 - **Limited repair scope:** The implementation supports a known scenario and an allow-listed patch rather than arbitrary code changes.
-- **Limited isolation:** Working copies help separate incident changes, but they are not a hardened security sandbox.
-- **Limited scenario coverage:** The current test fixture does not represent the full range of real-world software failures.
+- **Limited isolation:** Working copies separate incident changes but are not a hardened security sandbox.
+- **Limited scenario coverage:** The current fixture does not represent the full range of real-world software failures.
+- **Optional external memory:** Hindsight requires valid configuration and successful remote operations. Recalled memories are supplementary context, not proof that a diagnosis is correct.
 - **No production deployment:** Authentication, multi-user access control, hardened execution isolation, and production operational safeguards are outside the current implementation.
 
-These limitations define the current scope and provide a foundation for future development.
+These limitations define the prototype's scope and help identify its next development priorities.
 
 ## Future Development
 
 Potential extensions include:
 
 - Integrating an AI model to assist with failure diagnosis and repair generation.
-- Supporting more programming languages and failure scenarios.
+- Supporting additional programming languages and failure scenarios.
 - Introducing stronger sandboxing for test and patch execution.
 - Adding patch-quality checks and regression-test generation.
 - Recording richer evidence and verification artifacts.
 - Adding role-based approval policies and audit trails.
-- Expanding automated acceptance tests and CI workflows.
+- Expanding automated acceptance tests and continuous integration workflows.
 
 These are future goals, not claims about existing functionality.
 
 ## Documentation
 
-Additional project documentation is available in the [`docs/`](docs/) directory:
+Additional project documentation is available in the `docs/` directory:
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [Acceptance Tests](docs/ACCEPTANCE_TESTS.md)
-- [Build Plan](docs/BUILD_PLAN.md)
+- `ARCHITECTURE.md` — architecture documentation.
+- `ACCEPTANCE_TESTS.md` — acceptance-test documentation.
+- `BUILD_PLAN.md` — project build plan.
 
 ## Project Status
 
-SentinelForge currently demonstrates an end-to-end, evidence-driven repair workflow for a supported Python bug scenario, with explicit human approval and automated post-repair verification.
+SentinelForge demonstrates an end-to-end, evidence-driven repair workflow for a supported Python authentication regression, with explicit human approval and automated post-repair verification.
 
-**The central principle is simple: a proposed repair is not enough. The outcome must be verified.**
+Its Hindsight integration adds persistent historical incident context and supports attempts to retain outcomes after successful verification, subject to configuration and remote-operation results.
 
----
+**A proposed repair is not enough. The outcome must be verified.**
 
-Built as a software reliability and repair prototype.
+*Built as a software reliability and repair prototype.*
