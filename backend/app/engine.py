@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .memory import memory
+
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "fixtures" / "buggy_app"
 DATA_DIR = ROOT / "data"
@@ -50,10 +52,15 @@ class Incident:
     verification_status: str = "not_run"
     verification_output: str | None = None
     created_at: str = ""
+    memory_status: str = "not_checked"
+    memory_query: str = ""
+    recalled_memories: list[dict[str, str]] = field(default_factory=list)
+    memory_message: str = ""
+    memory_retention_status: str = "not_attempted"
 
     def public_dict(self) -> dict[str, Any]:
+        """Return incident data without exposing local workspace paths."""
         data = asdict(self)
-        # Never expose local filesystem paths through the API.
         data.pop("workspace", None)
         return data
 
@@ -110,7 +117,6 @@ class SentinelForgeEngine:
             try:
                 data = json.loads(row["payload"])
                 incident = Incident(**data)
-
                 workspace = Path(incident.workspace).resolve()
 
                 # Restore only direct child workspaces belonging to this app.
@@ -199,15 +205,73 @@ class SentinelForgeEngine:
             reverse=True,
         )
 
+    @staticmethod
+    def _classify_memories(
+        memories: list[dict[str, str]],
+    ) -> tuple[list[str], list[str]]:
+        """
+        Classify recalled text using explicit keyword criteria.
+
+        This is a deterministic relevance heuristic, not an AI judgment.
+        """
+        relevant: list[str] = []
+        other: list[str] = []
+
+        for item in memories:
+            text = str(item.get("text", "")).strip()
+
+            if not text:
+                continue
+
+            normalized = text.lower()
+
+            matches_authentication = any(
+                term in normalized
+                for term in (
+                    "login",
+                    "authentication",
+                    "credential",
+                    "password",
+                )
+            )
+
+            matches_repair = any(
+                term in normalized
+                for term in (
+                    "return true",
+                    "valid credentials",
+                    "matching-password",
+                    "root cause",
+                )
+            )
+
+            indicates_success = any(
+                term in normalized
+                for term in (
+                    "passed",
+                    "verified",
+                    "verification result",
+                )
+            )
+
+            if (
+                matches_authentication
+                and matches_repair
+                and indicates_success
+            ):
+                relevant.append(text)
+            else:
+                other.append(text)
+
+        return relevant, other
+
     def investigate(self, incident_id: str) -> Incident:
         incident = self.get_incident(incident_id)
         source_path = Path(incident.workspace) / "auth_logic.py"
         source = source_path.read_text(encoding="utf-8")
 
-        if (
-            "return False  # BUG: valid credentials are rejected"
-            not in source
-        ):
+        # Establish current code evidence before consulting memory.
+        if BUGGY_LINE not in source:
             incident.diagnosis = (
                 "The known faulty line was not found; "
                 "no diagnosis was asserted."
@@ -220,20 +284,64 @@ class SentinelForgeEngine:
             self._save_incident(incident)
             return incident
 
+        # Retrieve prior experience from Hindsight.
+        incident.memory_query = (
+            "Verified Python authentication login regression where valid "
+            "credentials are rejected. Retrieve prior root causes, exact "
+            "repair patterns, failed approaches, and regression test outcomes."
+        )
+
+        recalled = memory.recall(incident.memory_query)
+        incident.memory_status = recalled["status"]
+        incident.recalled_memories = recalled.get("results", [])
+        incident.memory_message = recalled.get("message", "")
+
+        relevant_memories, other_memories = self._classify_memories(
+            incident.recalled_memories
+        )
+
+        # The diagnosis is grounded in the current source pattern.
         incident.diagnosis = (
-            "The credential comparison is correct, but the success "
-            "branch returns False. This reverses the expected result "
-            "for valid credentials."
+            "The credential comparison is correct, but the matching-password "
+            "branch returns False. This reverses the expected result for "
+            "valid credentials."
         )
 
         incident.evidence = [
-            "auth_logic.py: the branch checks whether the stored "
-            "password equals the supplied password.",
-            "auth_logic.py: the matching-password branch returns False "
-            "(the suspected defect).",
-            "Baseline test output: test_valid_credentials fails while "
-            "invalid-credential checks are evaluated.",
+            "auth_logic.py: the branch compares the stored password "
+            "with the supplied password.",
+            "auth_logic.py: the matching-password branch returns False; "
+            "this is direct evidence of the suspected defect.",
+            (
+                "Baseline test output: "
+                + incident.baseline_output[-1500:]
+                if incident.baseline_output
+                else "No baseline test output was recorded."
+            ),
         ]
+
+        if relevant_memories:
+            incident.evidence.append(
+                f"Hindsight relevance check: {len(relevant_memories)} "
+                "memory item(s) matched the authentication, repair-pattern, "
+                "and successful-outcome criteria."
+            )
+            incident.evidence.append(
+                "Memory-assisted guidance: matching prior experience supports "
+                "considering the return-value correction. Current source "
+                "evidence and regression tests remain authoritative."
+            )
+        elif incident.memory_status == "success":
+            incident.evidence.append(
+                "Hindsight recall succeeded, but no recalled item matched "
+                "all relevance criteria. The diagnosis relies on current "
+                "source evidence rather than unrelated memories."
+            )
+        else:
+            incident.evidence.append(
+                "Hindsight recall was unavailable or failed. The diagnosis "
+                "relies on current source evidence."
+            )
 
         incident.status = "investigated"
         self._save_incident(incident)
@@ -285,7 +393,6 @@ class SentinelForgeEngine:
 
         # Apply only the exact allow-listed patch after explicit approval.
         updated_source = source.replace(BUGGY_LINE, FIXED_LINE, 1)
-
         source_path.write_text(updated_source, encoding="utf-8")
 
         incident.approval_status = "approved"
@@ -311,6 +418,39 @@ class SentinelForgeEngine:
         incident.status = (
             "verified" if result["passed"] else "verification_failed"
         )
+
+        # Retain only after tests pass.
+        if incident.verification_status == "passed":
+            retained = memory.retain(
+                content=(
+                    f"Verified software incident: {incident.title}. "
+                    f"Scenario: {incident.scenario_id}. "
+                    f"Evidence: {'; '.join(incident.evidence)}. "
+                    f"Root cause: {incident.diagnosis}. "
+                    "Approved repair: in the matching-password branch, "
+                    "return True instead of False. "
+                    f"Verification result: passed. "
+                    f"Test output: {incident.verification_output}. "
+                    "Use this as prior experience only when current evidence "
+                    "and the code pattern match."
+                ),
+                context=(
+                    "SentinelForge post-patch verification; outcome recorded "
+                    "only after tests passed."
+                ),
+                metadata={
+                    "incident_id": incident.id,
+                    "scenario_id": incident.scenario_id,
+                    "verification": incident.verification_status,
+                },
+            )
+
+            incident.memory_retention_status = retained["status"]
+
+            if retained.get("message"):
+                incident.memory_message = (
+                    incident.memory_message + " " + retained["message"]
+                ).strip()
 
         self._save_incident(incident)
         return incident
