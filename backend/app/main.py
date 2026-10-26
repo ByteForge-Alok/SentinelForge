@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from .engine import SentinelForgeEngine
+from .memory import memory
 from .schemas import CreateIncidentRequest
 
 app = FastAPI(
@@ -35,6 +36,12 @@ def health() -> dict[str, str]:
         "service": "sentinelforge-api",
         "version": "0.1.0",
     }
+
+
+@app.get("/api/memory/status")
+def memory_status() -> dict:
+    """Report whether the real Hindsight client is configured."""
+    return memory.status()
 
 
 @app.get("/api/scenarios")

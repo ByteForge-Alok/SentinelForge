@@ -123,6 +123,34 @@ Before running SentinelForge, install:
 
 The commands below use Windows PowerShell.
 
+
+## Hindsight incident memory
+
+SentinelForge now has an optional **real Hindsight integration** for recalling prior engineering incidents during investigation and retaining an outcome only after the post-patch tests pass. The dashboard displays the recall result and retention status; it does not fabricate sample memories.
+
+### Configure Hindsight Cloud
+
+1. Create/configure a Hindsight Cloud API key using the official [Hindsight docs](https://hindsight.vectorize.io/).
+2. In `backend`, copy `.env.example` to `.env` and set `HINDSIGHT_API_KEY` to your own key. Do not commit `.env` or share the key in screenshots.
+3. Install backend dependencies and restart the API so it reads the environment:
+
+   ```powershell
+   cd backend
+   Copy-Item .env.example .env
+   # Edit .env and set HINDSIGHT_API_KEY before continuing.
+   .\.venv\Scripts\Activate.ps1
+   pip install -r requirements.txt
+   uvicorn app.main:app --reload
+   ```
+
+   If your virtual environment is not already created, create it with `python -m venv .venv` first.
+4. Open the dashboard, create an incident, and run **Investigate evidence**. The Hindsight panel shows actual recall status and any returned memories.
+5. Approve the proposed patch and run verification. Only a passing verification result is sent to Hindsight as a verified-outcome memory.
+
+Configuration uses `HINDSIGHT_BASE_URL` (default `https://api.hindsight.vectorize.io`) and `HINDSIGHT_BANK_ID` (default `sentinelforge-engineering`). The API endpoint `/api/memory/status` reports whether the client is configured. Without a key, the repair workflow still runs, but Hindsight memory calls are explicitly marked as not configured. A configured client alone does not prove a successful remote call; check the incident's displayed recall/retention status.
+
+The implementation follows Hindsight's documented Python client operations (`create_bank`, `recall`, and `retain`): [Python SDK guide](https://docs.hindsight.vectorize.io/cloud/python-sdk/).
+
 ## Installation and Setup
 
 ### 1. Clone the Repository

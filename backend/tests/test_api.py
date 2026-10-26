@@ -35,3 +35,12 @@ def test_full_repair_workflow():
     assert verified["verification_status"] == "passed"
     assert verified["status"] == "verified"
     assert "3 passed" in verified["verification_output"]
+
+
+def test_hindsight_status_endpoint_is_explicit():
+    response = client.get("/api/memory/status")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["provider"] == "Hindsight"
+    assert isinstance(data["configured"], bool)
+    assert "message" in data
