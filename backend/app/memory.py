@@ -164,4 +164,9 @@ class IncidentMemory:
             }
 
 
+    async def aclose(self) -> None:
+        """Close the Hindsight client during application shutdown."""
+        if self._client is not None:
+            await self._client.aclose()
+
 memory = IncidentMemory()

@@ -1,10 +1,22 @@
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from .engine import SentinelForgeEngine
 from .memory import memory
 from .schemas import CreateIncidentRequest
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application resources during startup and shutdown."""
+    try:
+        yield
+    finally:
+        await memory.aclose()
+
 
 app = FastAPI(
     title="SentinelForge API",
@@ -13,6 +25,7 @@ app = FastAPI(
         "Uses one allow-listed demo scenario."
     ),
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
